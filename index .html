@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2f6b4f">
+<title>每日健康紀錄</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style>
+  :root{
+    --green:#2f6b4f; --green-d:#22513b; --green-l:#e6efe9;
+    --gold:#c9a24a; --gold-l:#f5ecd6;
+    --cream:#faf6ec; --card:#ffffff; --text:#2b2b2b; --muted:#77736a;
+    --line:#e7e0cf; --red:#c4453a; --red-l:#fbe9e7;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--cream);color:var(--text);
+    font-family:-apple-system,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;
+    font-size:18px;line-height:1.6}
+  .wrap{max-width:560px;margin:0 auto;padding:16px 16px 80px}
+  h1{font-size:28px;margin:8px 0 4px;color:var(--green)}
+  h2{font-size:20px;margin:0 0 12px;color:var(--green)}
+  .muted{color:var(--muted);font-size:16px;margin:4px 0 12px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;margin:14px 0}
+  .center{text-align:center}
+  .brand{height:6px;border-radius:3px;background:linear-gradient(90deg,var(--green),var(--gold));margin:6px 0 18px}
+  .field{display:block;margin:10px 0}
+  .field>span{display:block;font-size:16px;color:var(--muted);margin-bottom:4px}
+  input[type=text],input[type=number],input[type=password],input[type=date],textarea{
+    width:100%;font-size:20px;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;
+    background:#fffdf8;color:var(--text);font-family:inherit}
+  input:focus,textarea:focus{outline:none;border-color:var(--green)}
+  textarea{resize:vertical;line-height:1.5}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .grid3 input{padding:12px 8px;text-align:center}
+  .btn{display:block;width:100%;border:0;border-radius:14px;font-size:20px;font-weight:600;
+    padding:14px;cursor:pointer;font-family:inherit}
+  .btn.big{min-height:58px;font-size:21px}
+  .btn.primary{background:var(--green);color:#fff}
+  .btn.primary:active{background:var(--green-d)}
+  .btn.gold{background:var(--gold);color:#fff}
+  .btn.ghost{background:transparent;color:var(--green);border:1.5px solid var(--green)}
+  .btn:disabled{opacity:.6}
+  .link{background:none;border:0;color:var(--green);font-size:17px;text-decoration:underline;cursor:pointer;padding:8px;font-family:inherit}
+  .topbar{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .hello{font-size:24px;font-weight:700;color:var(--green)}
+  .sub{font-size:16px;color:var(--muted)}
+  .notice{background:var(--gold-l);border-radius:12px;padding:12px 14px;margin-top:12px;font-size:17px}
+  .warn{background:var(--red-l);color:var(--red);border-radius:12px;padding:12px 14px;margin:12px 0;font-size:16px}
+
+  .photos{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .slot{position:relative;display:flex;align-items:center;justify-content:center;aspect-ratio:1;
+    border:2px dashed var(--gold);border-radius:14px;background:var(--gold-l);cursor:pointer;overflow:hidden;text-align:center}
+  .slot.wide{aspect-ratio:4/3;margin-bottom:6px}
+  .slot.single{aspect-ratio:auto;height:64px;margin-top:12px;justify-content:flex-start;padding:0 14px}
+  .slot.single img{position:static;width:48px;height:48px;border-radius:8px;margin-right:10px}
+  .slot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  .slot .ph{color:#8a6d25;font-size:17px;padding:4px}
+  .slot.single .ph{font-size:17px}
+  .slot .rm{position:absolute;top:4px;right:4px;width:32px;height:32px;border-radius:50%;border:0;
+    background:rgba(0,0,0,.55);color:#fff;font-size:20px;line-height:32px;padding:0;cursor:pointer}
+  .slot.single .rm{top:16px;right:10px}
+  .slot.loading .ph::after{content:" 處理中…"}
+
+  .stepper-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0}
+  .stepper-row+.stepper-row{border-top:1px solid var(--line)}
+  .stepper-row>span{font-size:19px}
+  .stepper{display:flex;align-items:center;gap:10px}
+  .stepper button{width:48px;height:48px;border-radius:50%;border:1.5px solid var(--green);
+    background:#fff;color:var(--green);font-size:26px;line-height:1;cursor:pointer;padding:0}
+  .stepper b{min-width:34px;text-align:center;font-size:24px}
+  .stepper .unit{font-size:16px;color:var(--muted);margin-left:-6px}
+
+  .moods{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:6px}
+  .moods button{font-size:19px;padding:12px;border-radius:12px;border:1.5px solid var(--line);background:#fffdf8;cursor:pointer;font-family:inherit;color:var(--text)}
+  .moods button.on{border-color:var(--green);background:var(--green-l);font-weight:600}
+
+  .result h2{margin-bottom:6px}
+  .row{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px;padding:8px 0;border-top:1px solid var(--line)}
+  .row span{color:var(--muted);min-width:70px}
+  .row b{font-size:22px}
+  .row em{font-style:normal;font-weight:600}
+  .down{color:var(--green)} .up{color:#b5651d} .same{color:var(--muted)}
+
+  .q{border-top:1px solid var(--line);padding:10px 0;font-size:17px}
+  .q .t{color:var(--muted);font-size:14px}
+  .q .rep{background:var(--green-l);border-radius:10px;padding:8px 10px;margin-top:6px}
+  .q .wait{color:#8a6d25;font-size:15px}
+
+  .tabs{display:flex;gap:8px;margin:14px 0}
+  .tabs button{flex:1;padding:12px;border-radius:12px;border:1.5px solid var(--green);background:#fff;color:var(--green);
+    font-size:18px;font-weight:600;cursor:pointer;font-family:inherit}
+  .tabs button.on{background:var(--green);color:#fff}
+  .badge{display:inline-block;min-width:24px;padding:0 7px;border-radius:12px;background:var(--red);color:#fff;font-size:15px;line-height:24px}
+  .datebar{display:flex;gap:8px;align-items:center}
+  .datebar button{width:52px;height:52px;border-radius:12px;border:1.5px solid var(--line);background:#fff;font-size:26px;cursor:pointer;color:var(--green)}
+  .summary{margin:12px 2px;font-size:18px}
+  .summary b{color:var(--green);font-size:22px}
+  .crow{display:flex;justify-content:space-between;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);
+    border-radius:14px;padding:14px;margin:8px 0;cursor:pointer}
+  .crow.miss{background:var(--red-l);border-color:#f0c4be}
+  .crow .nm{font-size:20px;font-weight:600}
+  .crow .info{font-size:16px;color:var(--muted)}
+  .tag{font-size:15px;padding:2px 10px;border-radius:10px;white-space:nowrap}
+  .tag.miss{background:var(--red);color:#fff}
+  .tag.down{background:var(--green-l)} .tag.up{background:#fbeedd}
+  .qcard{background:#fff;border:1px solid var(--line);border-left:5px solid var(--gold);border-radius:14px;padding:14px;margin:10px 0}
+  .qcard .who{font-weight:700;font-size:19px}
+  .qcard img{width:100%;max-height:360px;object-fit:contain;border-radius:10px;margin:8px 0;background:#f2eee3;cursor:zoom-in}
+  .qcard .btns{display:flex;gap:8px;margin-top:8px}
+  .qcard .btns .btn{font-size:17px;padding:12px}
+  .stat{display:flex;gap:10px;margin:10px 0}
+  .stat div{flex:1;background:var(--green-l);border-radius:12px;padding:10px;text-align:center}
+  .stat b{display:block;font-size:22px;color:var(--green)}
+  .stat span{font-size:14px;color:var(--muted)}
+  .hist{border-top:1px solid var(--line);padding:12px 0}
+  .hist .d{font-weight:700;color:var(--green)}
+  .hist .nums{font-size:17px}
+  .hist .note{font-size:16px;background:var(--cream);border-radius:8px;padding:6px 10px;margin-top:6px}
+  .thumbs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
+  .thumbs figure{margin:0;text-align:center;font-size:13px;color:var(--muted)}
+  .thumbs img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;cursor:zoom-in}
+  svg.chart{width:100%;height:auto;display:block}
+
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;z-index:20}
+  .sheet{background:var(--cream);width:100%;max-width:560px;border-radius:20px 20px 0 0;padding:20px 16px calc(20px + env(safe-area-inset-bottom));max-height:92vh;overflow:auto}
+  .sheet .btns{display:flex;gap:10px;margin-top:8px}
+  #viewer{position:fixed;inset:0;background:rgba(0,0,0,.9);display:flex;align-items:center;justify-content:center;z-index:30}
+  #viewer img{max-width:100%;max-height:100%}
+  #toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:#333;color:#fff;padding:12px 20px;border-radius:24px;font-size:17px;z-index:40;max-width:90%;text-align:center}
+  footer{text-align:center;margin-top:30px}
+  [hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="warn" id="setupWarn" hidden>還沒設定 Firebase：請打開這個檔案，把 firebaseConfig 換成你自己的設定。</div>
+
+  <!-- ===== 輸入名字 ===== -->
+  <section id="viewName" class="view" hidden>
+    <h1>每日健康紀錄</h1>
+    <div class="brand"></div>
+    <div class="card">
+      <h2>先告訴我你的名字</h2>
+      <p class="muted">只要輸入一次，之後打開就會記住。請每次都用同一個名字。</p>
+      <label class="field"><input id="nameInput" type="text" placeholder="例如：王小美" autocomplete="name"></label>
+      <button class="btn primary big" id="nameGo">開始填寫</button>
+    </div>
+  </section>
+
+  <!-- ===== 客戶填寫 ===== -->
+  <section id="viewForm" class="view" hidden>
+    <div class="topbar">
+      <div><div class="hello" id="hello"></div><div class="sub" id="todayLabel"></div></div>
+      <button class="link" id="switchUser">不是我？換人</button>
+    </div>
+    <div class="brand"></div>
+    <div class="notice" id="editNotice" hidden>今天已經填過了，可以修改後再送出一次。</div>
+
+    <div class="card">
+      <h2>身體數字</h2>
+      <div class="grid3">
+        <label class="field"><span>體重 kg</span><input id="weight" type="number" inputmode="decimal" step="0.1" placeholder="62.5"></label>
+        <label class="field"><span>體脂 %</span><input id="fat" type="number" inputmode="decimal" step="0.1" placeholder="28.3"></label>
+        <label class="field"><span>內臟脂肪</span><input id="visceral" type="number" inputmode="decimal" step="0.5" placeholder="7"></label>
+      </div>
+      <div id="scaleSlotWrap"></div>
+    </div>
+
+    <div class="card">
+      <h2>三餐照片</h2>
+      <p class="muted">點一下可以拍照或從相簿選，照片會自動縮小。</p>
+      <div class="photos" id="mealSlots"></div>
+    </div>
+
+    <div class="card">
+      <h2>奶昔和水</h2>
+      <div class="stepper-row"><span>奶昔</span>
+        <div class="stepper"><button type="button" data-step="shakes" data-d="-1">−</button><b id="shakesVal">0</b><span class="unit">杯</span><button type="button" data-step="shakes" data-d="1">＋</button></div>
+      </div>
+      <div class="stepper-row"><span>喝水</span>
+        <div class="stepper"><button type="button" data-step="water" data-d="-1">−</button><b id="waterVal">0</b><span class="unit">杯</span><button type="button" data-step="water" data-d="1">＋</button></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>今天心情</h2>
+      <div class="moods" id="moods"></div>
+      <label class="field"><span>備註</span><textarea id="note" rows="3" placeholder="今天的狀況、想跟教練說的話…"></textarea></label>
+    </div>
+
+    <button class="btn primary big" id="submitBtn">送出今天的紀錄</button>
+    <div class="card result" id="resultCard" hidden></div>
+
+    <div class="card">
+      <h2>臨時問教練</h2>
+      <p class="muted">吃之前不確定？拍張照、打一句話問我。</p>
+      <button class="btn gold big" id="askOpen">📷 臨時問教練</button>
+      <div id="myQs"></div>
+    </div>
+
+    <footer><button class="link" id="toCoach" style="font-size:14px;color:#aaa">教練入口</button></footer>
+  </section>
+
+  <!-- ===== 教練登入 ===== -->
+  <section id="viewLogin" class="view" hidden>
+    <h1>教練後台</h1>
+    <div class="brand"></div>
+    <div class="card">
+      <label class="field"><span>請輸入密碼</span><input id="pw" type="password" autocomplete="current-password"></label>
+      <button class="btn primary big" id="pwGo">進入</button>
+      <div class="center"><button class="link" id="backClient">回到填寫頁</button></div>
+    </div>
+  </section>
+
+  <!-- ===== 教練後台 ===== -->
+  <section id="viewCoach" class="view" hidden>
+    <div class="topbar"><div class="hello">教練後台</div><button class="link" id="logout">登出</button></div>
+    <div class="brand"></div>
+    <div class="tabs" id="tabs">
+      <button data-tab="tabToday" class="on">每日紀錄</button>
+      <button data-tab="tabQs">待回覆 <span class="badge" id="qBadge" hidden>0</span></button>
+    </div>
+
+    <div id="tabToday" class="tab">
+      <div class="datebar"><button id="dPrev" aria-label="前一天">‹</button><input type="date" id="dPick"><button id="dNext" aria-label="後一天">›</button></div>
+      <div class="summary" id="todaySummary"></div>
+      <div id="todayList"></div>
+    </div>
+
+    <div id="tabQs" class="tab" hidden><div id="qList"></div></div>
+
+    <div id="tabClient" class="tab" hidden>
+      <button class="link" id="backList">‹ 回列表</button>
+      <div class="card">
+        <div class="topbar"><h2 id="cName" style="margin:0"></h2></div>
+        <div class="stat" id="cStat"></div>
+        <div id="cChart"></div>
+      </div>
+      <div class="card"><h2>歷史紀錄</h2><div id="cHist"></div></div>
+      <div class="center"><button class="link" id="hideClient" style="color:#aaa;font-size:15px">這位已結束陪伴，從每日名單移除</button></div>
+    </div>
+  </section>
+</div>
+
+<!-- 臨時問教練 視窗 -->
+<div class="modal" id="askModal" hidden>
+  <div class="sheet">
+    <h2>臨時問教練</h2>
+    <div id="askSlotWrap"></div>
+    <label class="field"><span>想問什麼？</span><textarea id="askText" rows="3" placeholder="例如：這個可以吃嗎？吃多少比較好？"></textarea></label>
+    <div class="btns">
+      <button class="btn ghost" id="askCancel">取消</button>
+      <button class="btn primary" id="askSend">送出問題</button>
+    </div>
+  </div>
+</div>
+
+<div id="viewer" hidden><img alt=""></div>
+<div id="toast" hidden></div>
+
+<script>
+/* =========================================================
+   ① 把下面這一段換成你自己的 Firebase 設定（教學第 3 步）
+   ========================================================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyBxzH_uYYZtgQ_QuG300lg_bLzag1WbLIM",
+  authDomain: "fit21-3741a.firebaseapp.com",
+  databaseURL: "https://fit21-3741a-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "fit21-3741a",
+  storageBucket: "fit21-3741a.firebasestorage.app",
+  messagingSenderId: "177610672979",
+  appId: "1:177610672979:web:c4a89766f29ad2f878efa6"
+};
+
+/* ② 教練後台密碼：請改成你自己的 */
+const COACH_PASSWORD = "fit21coach";
+
+/* ③ 資料放在資料庫的哪一格（不用改） */
+const ROOT = "fit21v2";
+
+/* ---------- 以下不用動 ---------- */
+const $ = s => document.querySelector(s);
+const configured = !!firebaseConfig.databaseURL && !firebaseConfig.apiKey.includes("請貼上");
+let db = null;
+if (configured) { firebase.initializeApp(firebaseConfig); db = firebase.database(); }
+const TS = () => firebase.database.ServerValue.TIMESTAMP;
+
+const SLOTS = ["scale", "breakfast", "lunch", "dinner"];
+const SLOT_LABEL = { scale: "體重計照片", breakfast: "早餐", lunch: "午餐", dinner: "晚餐", ask: "拍照或選照片" };
+const MOODS = { good: "😊 很好", ok: "🙂 普通", tired: "😪 有點累", bad: "😣 不太好" };
+
+function lsGet(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
+function lsSet(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
+function lsDel(k){ try { localStorage.removeItem(k); } catch(e){} }
+function ssGet(k){ try { return sessionStorage.getItem(k); } catch(e){ return null; } }
+function ssSet(k,v){ try { sessionStorage.setItem(k,v); } catch(e){} }
+
+function z(n){ return String(n).padStart(2, "0"); }
+function dateStr(d){ return d.getFullYear() + "-" + z(d.getMonth()+1) + "-" + z(d.getDate()); }
+function todayStr(){ return dateStr(new Date()); }
+function md(ds){ const p = ds.split("-"); return (+p[1]) + "/" + (+p[2]); }
+function weekday(ds){ const p = ds.split("-"); return "日一二三四五六"[new Date(+p[0], p[1]-1, +p[2]).getDay()]; }
+function timeStr(ts){ if(!ts) return ""; const d = new Date(ts); return (d.getMonth()+1) + "/" + d.getDate() + " " + z(d.getHours()) + ":" + z(d.getMinutes()); }
+function keyOf(name){ return name.trim().replace(/[.#$\[\]\/]/g, "_"); }
+function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c])); }
+function r1(n){ return Math.round(n * 10) / 10; }
+function num(sel){ const v = $(sel).value.trim(); if (v === "") return null; const n = parseFloat(v); return isNaN(n) ? null : n; }
+
+let toastTimer;
+function toast(msg){ const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => t.hidden = true, 2600); }
+function show(id){ document.querySelectorAll(".view").forEach(v => v.hidden = v.id !== id); window.scrollTo(0, 0); }
+function viewImg(src){ const v = $("#viewer"); v.querySelector("img").src = src; v.hidden = false; }
+$("#viewer").onclick = () => $("#viewer").hidden = true;
+
+/* ---------- 照片壓縮 ---------- */
+async function compress(file, max = 1024, q = 0.6){
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+    const r = Math.min(1, max / Math.max(img.width, img.height));
+    const c = document.createElement("canvas");
+    c.width = Math.round(img.width * r); c.height = Math.round(img.height * r);
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL("image/jpeg", q);
+  } finally { URL.revokeObjectURL(url); }
+}
+
+function slotHTML(s, cls){
+  return `<label class="slot ${cls||""}" id="slot-${s}"><input type="file" accept="image/*" data-slot="${s}" hidden>` +
+         `<img alt="" hidden><span class="ph">＋ ${SLOT_LABEL[s]}</span><button type="button" class="rm" data-rm="${s}" hidden>×</button></label>`;
+}
+function setSlotImg(s, src){
+  const el = $("#slot-" + s); if (!el) return;
+  const img = el.querySelector("img"), ph = el.querySelector(".ph"), rm = el.querySelector(".rm");
+  el.classList.remove("loading");
+  if (src){ img.src = src; img.hidden = false; rm.hidden = false; ph.textContent = el.classList.contains("single") ? "已附上體重計照片" : ""; ph.hidden = !el.classList.contains("single"); }
+  else { img.removeAttribute("src"); img.hidden = true; rm.hidden = true; ph.hidden = false; ph.textContent = "＋ " + SLOT_LABEL[s]; }
+}
+
+$("#scaleSlotWrap").innerHTML = slotHTML("scale", "single");
+$("#mealSlots").innerHTML = ["breakfast","lunch","dinner"].map(s => slotHTML(s)).join("");
+$("#askSlotWrap").innerHTML = slotHTML("ask", "wide");
+$("#moods").innerHTML = Object.entries(MOODS).map(([k,v]) => `<button type="button" data-mood="${k}">${v}</button>`).join("");
+
+/* ---------- 客戶端狀態 ---------- */
+let me = null, newPhotos = {}, existingFlags = {}, shakes = 0, water = 0, mood = "", askPhoto = null, myQsRef = null;
+
+document.addEventListener("change", async e => {
+  const inp = e.target;
+  if (!inp.matches || !inp.matches("input[type=file][data-slot]")) return;
+  const f = inp.files && inp.files[0]; if (!f) return;
+  const s = inp.dataset.slot;
+  $("#slot-" + s).classList.add("loading");
+  try {
+    const d = await compress(f);
+    if (s === "ask") askPhoto = d; else newPhotos[s] = d;
+    setSlotImg(s, d);
+  } catch(err){ $("#slot-" + s).classList.remove("loading"); toast("照片讀不出來，請換一張試試"); }
+  inp.value = "";
+});
+
+document.addEventListener("click", e => {
+  const rm = e.target.closest("[data-rm]");
+  if (rm){ e.preventDefault(); e.stopPropagation(); const s = rm.dataset.rm;
+    if (s === "ask") askPhoto = null; else newPhotos[s] = null;
+    setSlotImg(s, null); return; }
+  const st = e.target.closest("[data-step]");
+  if (st){ const d = +st.dataset.d;
+    if (st.dataset.step === "shakes"){ shakes = Math.max(0, shakes + d); $("#shakesVal").textContent = shakes; }
+    else { water = Math.max(0, water + d); $("#waterVal").textContent = water; }
+    return; }
+  const mb = e.target.closest("[data-mood]");
+  if (mb){ mood = mood === mb.dataset.mood ? "" : mb.dataset.mood; paintMood(); }
+});
+function paintMood(){ document.querySelectorAll("[data-mood]").forEach(b => b.classList.toggle("on", b.dataset.mood === mood)); }
+
+/* ---------- 名字 ---------- */
+function setMe(name){ me = { name: name.trim(), key: keyOf(name) }; }
+$("#nameGo").onclick = () => {
+  const n = $("#nameInput").value.trim();
+  if (!n){ toast("請輸入名字"); return; }
+  lsSet("fit21_name", n); setMe(n); openForm();
+};
+$("#nameInput").addEventListener("keydown", e => { if (e.key === "Enter") $("#nameGo").click(); });
+$("#switchUser").onclick = () => {
+  if (!confirm("要換成別的名字嗎？")) return;
+  lsDel("fit21_name"); if (myQsRef) myQsRef.off(); me = null;
+  $("#nameInput").value = ""; show("viewName");
+};
+
+/* ---------- 填寫頁 ---------- */
+function resetForm(){
+  ["#weight","#fat","#visceral","#note"].forEach(s => $(s).value = "");
+  shakes = 0; water = 0; mood = ""; newPhotos = {}; existingFlags = {};
+  $("#shakesVal").textContent = 0; $("#waterVal").textContent = 0; paintMood();
+  SLOTS.forEach(s => setSlotImg(s, null));
+  $("#editNotice").hidden = true; $("#resultCard").hidden = true;
+}
+async function openForm(){
+  show("viewForm");
+  const t = todayStr();
+  $("#hello").textContent = me.name + "，晚安";
+  $("#todayLabel").textContent = "今天 " + md(t) + "（" + weekday(t) + "）";
+  resetForm();
+  if (!db) return;
+  loadMyQs();
+  try {
+    const r = (await db.ref(`${ROOT}/records/${me.key}/${t}`).once("value")).val();
+    if (!r) return;
+    $("#editNotice").hidden = false;
+    if (r.weight != null) $("#weight").value = r.weight;
+    if (r.fat != null) $("#fat").value = r.fat;
+    if (r.visceral != null) $("#visceral").value = r.visceral;
+    $("#note").value = r.note || "";
+    shakes = r.shakes || 0; water = r.water || 0; mood = r.mood || "";
+    $("#shakesVal").textContent = shakes; $("#waterVal").textContent = water; paintMood();
+    existingFlags = r.photos || {};
+    Object.keys(existingFlags).forEach(s => {
+      db.ref(`${ROOT}/photos/${me.key}/${t}/${s}`).once("value").then(p => { if (p.val() && !(s in newPhotos)) setSlotImg(s, p.val()); });
+    });
+  } catch(e){ toast("讀取失敗，請檢查網路"); }
+}
+
+async function getPrev(key, date){
+  const snap = await db.ref(`${ROOT}/records/${key}`).orderByKey().limitToLast(5).once("value");
+  let best = null;
+  snap.forEach(c => { const v = c.val(); if (c.key < date && v && v.weight != null) best = Object.assign({ date: c.key }, v); });
+  return best;
+}
+
+$("#submitBtn").onclick = async () => {
+  if (!db){ toast("還沒設定 Firebase"); return; }
+  const w = num("#weight"), f = num("#fat"), v = num("#visceral");
+  if (w == null){ toast("請先填體重"); $("#weight").focus(); return; }
+  const btn = $("#submitBtn"); btn.disabled = true; btn.textContent = "送出中…";
+  try {
+    const date = todayStr(), up = {}, flags = Object.assign({}, existingFlags);
+    SLOTS.forEach(s => {
+      if (!(s in newPhotos)) return;
+      if (newPhotos[s]){ flags[s] = true; up[`photos/${me.key}/${date}/${s}`] = newPhotos[s]; }
+      else { delete flags[s]; up[`photos/${me.key}/${date}/${s}`] = null; }
+    });
+    const prev = await getPrev(me.key, date);
+    const dW = prev && prev.weight != null ? r1(w - prev.weight) : null;
+    const dF = prev && prev.fat != null && f != null ? r1(f - prev.fat) : null;
+    const note = $("#note").value.trim();
+    up[`records/${me.key}/${date}`] = { name: me.name, weight: w, fat: f, visceral: v, shakes, water, mood, note, photos: flags, ts: TS() };
+    up[`daily/${date}/${me.key}`] = { name: me.name, weight: w, fat: f, visceral: v, dW, dF, shakes, water, mood, hasNote: !!note, ts: TS() };
+    up[`clients/${me.key}`] = { name: me.name, last: date };
+    await db.ref(ROOT).update(up);
+    existingFlags = flags; newPhotos = {};
+    $("#editNotice").hidden = false;
+    showResult(w, f, v, prev);
+  } catch(e){ toast("送出失敗，請檢查網路再試一次"); }
+  btn.disabled = false; btn.textContent = "送出今天的紀錄";
+};
+
+function diffLine(label, cur, prev, unit){
+  if (cur == null) return "";
+  let tail = "";
+  if (prev != null){
+    const d = r1(cur - prev);
+    if (d < 0) tail = `<em class="down">比上次少 ${Math.abs(d)}${unit}</em>`;
+    else if (d > 0) tail = `<em class="up">比上次多 ${d}${unit}</em>`;
+    else tail = `<em class="same">跟上次一樣</em>`;
+  }
+  return `<div class="row"><span>${label}</span><b>${cur}${unit}</b>${tail}</div>`;
+}
+function showResult(w, f, v, prev){
+  const head = prev ? `和上次（${md(prev.date)}）相比：` : "這是你的第一筆紀錄，明天開始就能看到變化。";
+  $("#resultCard").innerHTML = `<h2>✓ 已送出，謝謝你</h2><p class="muted">${head}</p>` +
+    diffLine("體重", w, prev && prev.weight, " 公斤") +
+    diffLine("體脂", f, prev && prev.fat, "%") +
+    diffLine("內臟脂肪", v, prev && prev.visceral, "");
+  $("#resultCard").hidden = false;
+  $("#resultCard").scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+/* ---------- 臨時問教練（客戶） ---------- */
+$("#askOpen").onclick = () => { askPhoto = null; setSlotImg("ask", null); $("#askText").value = ""; $("#askModal").hidden = false; };
+$("#askCancel").onclick = () => $("#askModal").hidden = true;
+$("#askModal").onclick = e => { if (e.target.id === "askModal") $("#askModal").hidden = true; };
+$("#askSend").onclick = async () => {
+  if (!db){ toast("還沒設定 Firebase"); return; }
+  const text = $("#askText").value.trim();
+  if (!text && !askPhoto){ toast("拍張照或打一句話再送出"); return; }
+  const btn = $("#askSend"); btn.disabled = true; btn.textContent = "送出中…";
+  try {
+    const id = db.ref(`${ROOT}/questions`).push().key, up = {};
+    up[`questions/${id}`] = { key: me.key, name: me.name, text, hasPhoto: !!askPhoto, replied: false, ts: TS() };
+    if (askPhoto) up[`qphotos/${id}`] = askPhoto;
+    await db.ref(ROOT).update(up);
+    $("#askModal").hidden = true; toast("已送給教練，回覆會出現在這頁下方");
+  } catch(e){ toast("送出失敗，請再試一次"); }
+  btn.disabled = false; btn.textContent = "送出問題";
+};
+function loadMyQs(){
+  if (myQsRef) myQsRef.off();
+  myQsRef = db.ref(`${ROOT}/questions`).orderByChild("key").equalTo(me.key).limitToLast(5);
+  myQsRef.on("value", snap => {
+    const list = []; snap.forEach(c => { list.push(c.val()); });
+    list.reverse();
+    $("#myQs").innerHTML = list.length ? `<p class="muted" style="margin-top:16px">最近的提問</p>` + list.map(q =>
+      `<div class="q"><div class="t">${timeStr(q.ts)}${q.hasPhoto ? "・附照片" : ""}</div><div>${esc(q.text) || "（照片）"}</div>` +
+      (q.replied ? (q.reply ? `<div class="rep">教練：${esc(q.reply)}</div>` : `<div class="rep">教練已看過 ✓</div>`) : `<div class="wait">等教練回覆中</div>`) + `</div>`
+    ).join("") : "";
+  });
+}
+
+/* =========================================================
+   教練後台
+   ========================================================= */
+let coachStarted = false, clients = {}, daily = {}, dailyRef = null, viewDate = todayStr(), qCache = {}, currentClient = null;
+
+function openCoach(){
+  if (ssGet("fit21_coach") === "ok") startCoach();
+  else { show("viewLogin"); setTimeout(() => $("#pw").focus(), 100); }
+}
+$("#toCoach").onclick = () => { location.hash = "coach"; };
+$("#pwGo").onclick = () => {
+  if ($("#pw").value === COACH_PASSWORD){ ssSet("fit21_coach", "ok"); $("#pw").value = ""; startCoach(); }
+  else toast("密碼不對");
+};
+$("#pw").addEventListener("keydown", e => { if (e.key === "Enter") $("#pwGo").click(); });
+$("#backClient").onclick = () => { history.replaceState(null, "", location.pathname); init(); };
+$("#logout").onclick = () => { try { sessionStorage.removeItem("fit21_coach"); } catch(e){} history.replaceState(null, "", location.pathname); location.reload(); };
+
+function startCoach(){
+  show("viewCoach");
+  if (!db){ toast("還沒設定 Firebase"); return; }
+  if (coachStarted) return;
+  coachStarted = true;
+  db.ref(`${ROOT}/clients`).on("value", s => { clients = s.val() || {}; renderToday(); });
+  setDate(todayStr());
+  db.ref(`${ROOT}/questions`).limitToLast(300).on("value", s => {
+    const qs = []; s.forEach(c => { const v = c.val(); if (v && !v.replied) qs.push(Object.assign({ id: c.key }, v)); });
+    renderQs(qs);
+  });
+}
+
+function setTab(id){
+  document.querySelectorAll(".tab").forEach(t => t.hidden = t.id !== id);
+  document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === id || (id === "tabClient" && b.dataset.tab === "tabToday")));
+  window.scrollTo(0, 0);
+}
+document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => setTab(b.dataset.tab));
+
+function setDate(ds){
+  viewDate = ds; $("#dPick").value = ds;
+  if (dailyRef) dailyRef.off();
+  daily = {}; renderToday();
+  dailyRef = db.ref(`${ROOT}/daily/${ds}`);
+  dailyRef.on("value", s => { daily = s.val() || {}; renderToday(); });
+}
+function shiftDate(n){ const p = viewDate.split("-"); const d = new Date(+p[0], p[1]-1, +p[2] + n); setDate(dateStr(d)); }
+$("#dPrev").onclick = () => shiftDate(-1);
+$("#dNext").onclick = () => shiftDate(1);
+$("#dPick").onchange = e => { if (e.target.value) setDate(e.target.value); };
+
+function deltaTag(d, unit){
+  if (d == null) return "";
+  if (d < 0) return `<span class="tag down">↓${Math.abs(d)}${unit}</span>`;
+  if (d > 0) return `<span class="tag up">↑${d}${unit}</span>`;
+  return `<span class="tag">持平</span>`;
+}
+function renderToday(){
+  const keys = new Set(Object.keys(clients).filter(k => !clients[k].hidden));
+  Object.keys(daily).forEach(k => keys.add(k));
+  const rows = [...keys].map(k => ({ k, name: (daily[k] && daily[k].name) || (clients[k] && clients[k].name) || k, d: daily[k], last: clients[k] && clients[k].last }));
+  const miss = rows.filter(r => !r.d).sort((a,b) => a.name.localeCompare(b.name, "zh-Hant"));
+  const done = rows.filter(r => r.d).sort((a,b) => (b.d.ts||0) - (a.d.ts||0));
+  const isToday = viewDate === todayStr();
+  $("#todaySummary").innerHTML = rows.length
+    ? `${isToday ? "今天" : md(viewDate)}（${weekday(viewDate)}）已填 <b>${done.length}</b> / ${rows.length} 人` + (miss.length ? `，<span style="color:var(--red)">${miss.length} 人還沒填</span>` : "")
+    : `還沒有客戶填過紀錄。把網址傳給客戶，他們填完就會出現在這裡。`;
+  $("#todayList").innerHTML =
+    miss.map(r => `<div class="crow miss" data-client="${esc(r.k)}"><div><div class="nm">${esc(r.name)}</div><div class="info">${r.last ? "上次填：" + md(r.last) : "還沒填過"}</div></div><span class="tag miss">還沒填</span></div>`).join("") +
+    done.map(r => { const d = r.d;
+      const bits = [`${d.weight} kg`, d.fat != null ? `體脂 ${d.fat}%` : "", `奶昔 ${d.shakes||0}`, `水 ${d.water||0} 杯`, d.mood ? MOODS[d.mood].split(" ")[0] : "", d.hasNote ? "📝" : ""].filter(Boolean).join("・");
+      return `<div class="crow" data-client="${esc(r.k)}"><div><div class="nm">${esc(r.name)}</div><div class="info">${bits}</div></div><div style="text-align:right">${deltaTag(d.dW, "kg")}</div></div>`; }).join("");
+}
+$("#todayList").onclick = e => { const r = e.target.closest("[data-client]"); if (r) openClient(r.dataset.client); };
+
+/* ---------- 待回覆問題 ---------- */
+function renderQs(qs){
+  qs.sort((a,b) => (a.ts||0) - (b.ts||0));
+  const badge = $("#qBadge"); badge.textContent = qs.length; badge.hidden = qs.length === 0;
+  if (!qs.length){ $("#qList").innerHTML = `<div class="card center muted">目前沒有待回覆的問題 ✓</div>`; return; }
+  const drafts = {}; document.querySelectorAll("#qList textarea[data-id]").forEach(t => drafts[t.dataset.id] = t.value);
+  $("#qList").innerHTML = qs.map(q => `
+    <div class="qcard">
+      <div class="topbar"><span class="who">${esc(q.name)}</span><span class="t" style="color:var(--muted);font-size:15px">${timeStr(q.ts)}</span></div>
+      ${q.hasPhoto ? `<img id="qimg-${q.id}" alt="" ${qCache[q.id] ? `src="${qCache[q.id]}"` : ""}>` : ""}
+      <div style="font-size:19px;margin:6px 0">${esc(q.text) || "（只有照片）"}</div>
+      <textarea data-id="${q.id}" rows="2" placeholder="打回覆給客戶（可不填）">${esc(drafts[q.id] || "")}</textarea>
+      <div class="btns"><button class="btn primary" data-reply="${q.id}">回覆並完成</button><button class="btn ghost" data-done="${q.id}">已用 LINE 回了</button></div>
+    </div>`).join("");
+  qs.filter(q => q.hasPhoto && !qCache[q.id]).forEach(q => {
+    db.ref(`${ROOT}/qphotos/${q.id}`).once("value").then(s => { if (s.val()){ qCache[q.id] = s.val(); const im = $("#qimg-" + q.id); if (im) im.src = s.val(); } });
+  });
+}
+$("#qList").onclick = async e => {
+  if (e.target.tagName === "IMG" && e.target.src) return viewImg(e.target.src);
+  const rb = e.target.closest("[data-reply]"), db2 = e.target.closest("[data-done]");
+  const id = rb ? rb.dataset.reply : db2 ? db2.dataset.done : null; if (!id) return;
+  const ta = document.querySelector(`#qList textarea[data-id="${id}"]`);
+  const reply = rb && ta ? ta.value.trim() : "";
+  if (rb && !reply){ toast("請先打回覆，或按「已用 LINE 回了」"); return; }
+  try { await db.ref(`${ROOT}/questions/${id}`).update({ replied: true, reply, repliedAt: TS() }); toast("已完成"); }
+  catch(err){ toast("更新失敗，請再試一次"); }
+};
+
+/* ---------- 單一客戶 ---------- */
+async function openClient(k){
+  currentClient = k;
+  setTab("tabClient");
+  $("#cName").textContent = (clients[k] && clients[k].name) || (daily[k] && daily[k].name) || k;
+  $("#cStat").innerHTML = ""; $("#cChart").innerHTML = `<p class="muted">讀取中…</p>`; $("#cHist").innerHTML = "";
+  try {
+    const snap = await db.ref(`${ROOT}/records/${k}`).orderByKey().limitToLast(120).once("value");
+    const recs = []; snap.forEach(c => { recs.push(Object.assign({ date: c.key }, c.val())); });
+    if (!recs.length){ $("#cChart").innerHTML = `<p class="muted">這位還沒有任何紀錄。</p>`; return; }
+    const ws = recs.filter(r => r.weight != null);
+    if (ws.length){
+      const first = ws[0], last = ws[ws.length - 1], d = r1(last.weight - first.weight);
+      $("#cStat").innerHTML = `<div><b>${last.weight}</b><span>最新體重 kg</span></div>` +
+        `<div><b>${d > 0 ? "+" : ""}${d}</b><span>${md(first.date)} 起 kg</span></div>` +
+        `<div><b>${recs.length}</b><span>總共填了幾天</span></div>`;
+    }
+    $("#cChart").innerHTML = chartSVG(ws);
+    $("#cHist").innerHTML = recs.slice().reverse().map(r => {
+      const nums = [r.weight != null ? `體重 ${r.weight}` : "", r.fat != null ? `體脂 ${r.fat}%` : "", r.visceral != null ? `內臟 ${r.visceral}` : "",
+        `奶昔 ${r.shakes||0}`, `水 ${r.water||0} 杯`, r.mood ? MOODS[r.mood] : ""].filter(Boolean).join("・");
+      const hasP = r.photos && Object.keys(r.photos).length;
+      return `<div class="hist"><div class="d">${md(r.date)}（${weekday(r.date)}）</div><div class="nums">${nums}</div>` +
+        (r.note ? `<div class="note">${esc(r.note)}</div>` : "") +
+        (hasP ? `<button class="link" data-photos="${r.date}">看照片（${Object.keys(r.photos).length} 張）</button><div class="thumbs" id="th-${r.date}"></div>` : "") + `</div>`;
+    }).join("");
+  } catch(e){ $("#cChart").innerHTML = `<p class="muted">讀取失敗，請檢查網路。</p>`; }
+}
+$("#cHist").onclick = async e => {
+  if (e.target.tagName === "IMG") return viewImg(e.target.src);
+  const b = e.target.closest("[data-photos]"); if (!b) return;
+  const date = b.dataset.photos; b.textContent = "讀取中…";
+  const s = (await db.ref(`${ROOT}/photos/${currentClient}/${date}`).once("value")).val() || {};
+  $("#th-" + date).innerHTML = SLOTS.filter(k => s[k]).map(k => `<figure><img src="${s[k]}" alt=""><figcaption>${SLOT_LABEL[k].replace("照片","")}</figcaption></figure>`).join("");
+  b.remove();
+};
+$("#backList").onclick = () => setTab("tabToday");
+$("#hideClient").onclick = async () => {
+  if (!currentClient || !confirm("從每日名單移除？（紀錄不會刪掉，他之後再填會自動回到名單）")) return;
+  await db.ref(`${ROOT}/clients/${currentClient}/hidden`).set(true);
+  setTab("tabToday"); toast("已移除");
+};
+
+function chartSVG(pts){
+  if (pts.length < 2) return `<p class="muted">紀錄滿兩天後，這裡會出現體重曲線。</p>`;
+  const W = 340, H = 180, pl = 40, pr = 14, pt = 16, pb = 30;
+  const ws = pts.map(p => p.weight);
+  let mn = Math.min(...ws), mx = Math.max(...ws);
+  if (mx - mn < 1){ const m = (mx + mn) / 2; mn = m - 0.5; mx = m + 0.5; }
+  const x = i => pl + (W - pl - pr) * i / (pts.length - 1);
+  const y = v => pt + (H - pt - pb) * (mx - v) / (mx - mn);
+  const line = pts.map((p,i) => x(i).toFixed(1) + "," + y(p.weight).toFixed(1)).join(" ");
+  const dots = pts.length <= 40 ? pts.map((p,i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(p.weight).toFixed(1)}" r="3.5" fill="#c9a24a"/>`).join("") : "";
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="體重變化">
+    <line x1="${pl}" y1="${pt}" x2="${W-pr}" y2="${pt}" stroke="#e7e0cf"/><line x1="${pl}" y1="${H-pb}" x2="${W-pr}" y2="${H-pb}" stroke="#e7e0cf"/>
+    <text x="${pl-6}" y="${pt+5}" font-size="12" text-anchor="end" fill="#77736a">${r1(mx)}</text>
+    <text x="${pl-6}" y="${H-pb+4}" font-size="12" text-anchor="end" fill="#77736a">${r1(mn)}</text>
+    <polyline points="${line}" fill="none" stroke="#2f6b4f" stroke-width="2.5" stroke-linejoin="round"/>${dots}
+    <text x="${pl}" y="${H-8}" font-size="12" fill="#77736a">${md(pts[0].date)}</text>
+    <text x="${W-pr}" y="${H-8}" font-size="12" text-anchor="end" fill="#77736a">${md(pts[pts.length-1].date)}</text>
+  </svg>`;
+}
+
+/* ---------- 啟動 ---------- */
+function init(){
+  if (!configured) $("#setupWarn").hidden = false;
+  if (location.hash === "#coach" || new URLSearchParams(location.search).has("coach")) return openCoach();
+  const saved = lsGet("fit21_name");
+  if (saved){ setMe(saved); openForm(); } else show("viewName");
+}
+window.addEventListener("hashchange", () => { if (location.hash === "#coach") openCoach(); });
+init();
+</script>
+</body>
+</html>
