@@ -73,6 +73,12 @@
   .stepper b{min-width:34px;text-align:center;font-size:24px}
   .stepper .unit{font-size:16px;color:var(--muted);margin-left:-6px}
 
+  .water{border-top:1px solid var(--line);margin-top:6px;padding-top:6px}
+  .quick{display:flex;gap:8px}
+  .quick button{flex:1;padding:10px;border-radius:12px;border:1.5px solid var(--green);background:#fff;color:var(--green);font-size:18px;cursor:pointer;font-family:inherit}
+  .scores{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+  .scores button{height:52px;border-radius:12px;border:1.5px solid var(--line);background:#fffdf8;font-size:21px;cursor:pointer;font-family:inherit;color:var(--text)}
+  .scores button.on{border-color:var(--gold);background:var(--gold);color:#fff;font-weight:700}
   .moods{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:6px}
   .moods button{font-size:19px;padding:12px;border-radius:12px;border:1.5px solid var(--line);background:#fffdf8;cursor:pointer;font-family:inherit;color:var(--text)}
   .moods button.on{border-color:var(--green);background:var(--green-l);font-weight:600}
@@ -167,7 +173,8 @@
         <label class="field"><span>體脂 %</span><input id="fat" type="number" inputmode="decimal" step="0.1" placeholder="28.3"></label>
         <label class="field"><span>內臟脂肪</span><input id="visceral" type="number" inputmode="decimal" step="0.5" placeholder="7"></label>
       </div>
-      <div id="scaleSlotWrap"></div>
+      <p class="muted" style="margin-top:6px">體重計照片（可各拍一張）</p>
+      <div class="photos" id="bodySlots"></div>
     </div>
 
     <div class="card">
@@ -181,9 +188,15 @@
       <div class="stepper-row"><span>奶昔</span>
         <div class="stepper"><button type="button" data-step="shakes" data-d="-1">−</button><b id="shakesVal">0</b><span class="unit">杯</span><button type="button" data-step="shakes" data-d="1">＋</button></div>
       </div>
-      <div class="stepper-row"><span>喝水</span>
-        <div class="stepper"><button type="button" data-step="water" data-d="-1">−</button><b id="waterVal">0</b><span class="unit">杯</span><button type="button" data-step="water" data-d="1">＋</button></div>
+      <div class="water">
+        <label class="field"><span>喝水（cc）</span><input id="waterCc" type="number" inputmode="numeric" step="50" min="0" placeholder="例如 2000"></label>
+        <div class="quick"><button type="button" data-water="250">＋250</button><button type="button" data-water="500">＋500</button><button type="button" data-water="0">清除</button></div>
       </div>
+    </div>
+
+    <div class="card">
+      <h2>給今天的自己打幾分</h2>
+      <div class="scores" id="scores"></div>
     </div>
 
     <div class="card">
@@ -289,8 +302,8 @@ let db = null;
 if (configured) { firebase.initializeApp(firebaseConfig); db = firebase.database(); }
 const TS = () => firebase.database.ServerValue.TIMESTAMP;
 
-const SLOTS = ["scale", "breakfast", "lunch", "dinner"];
-const SLOT_LABEL = { scale: "體重計照片", breakfast: "早餐", lunch: "午餐", dinner: "晚餐", ask: "拍照或選照片" };
+const SLOTS = ["w", "f", "v", "breakfast", "lunch", "dinner"];
+const SLOT_LABEL = { w: "體重", f: "體脂", v: "內臟脂肪", breakfast: "早餐", lunch: "午餐", dinner: "晚餐", ask: "拍照或選照片" };
 const MOODS = { good: "😊 很好", ok: "🙂 普通", tired: "😪 有點累", bad: "😣 不太好" };
 
 function lsGet(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
@@ -341,13 +354,14 @@ function setSlotImg(s, src){
   else { img.removeAttribute("src"); img.hidden = true; rm.hidden = true; ph.hidden = false; ph.textContent = "＋ " + SLOT_LABEL[s]; }
 }
 
-$("#scaleSlotWrap").innerHTML = slotHTML("scale", "single");
+$("#bodySlots").innerHTML = ["w","f","v"].map(s => slotHTML(s)).join("");
+$("#scores").innerHTML = [1,2,3,4,5,6,7,8,9,10].map(n => `<button type="button" data-score="${n}">${n}</button>`).join("");
 $("#mealSlots").innerHTML = ["breakfast","lunch","dinner"].map(s => slotHTML(s)).join("");
 $("#askSlotWrap").innerHTML = slotHTML("ask", "wide");
 $("#moods").innerHTML = Object.entries(MOODS).map(([k,v]) => `<button type="button" data-mood="${k}">${v}</button>`).join("");
 
 /* ---------- 客戶端狀態 ---------- */
-let me = null, newPhotos = {}, existingFlags = {}, shakes = 0, water = 0, mood = "", askPhoto = null, myQsRef = null;
+let me = null, newPhotos = {}, existingFlags = {}, shakes = 0, score = 0, mood = "", askPhoto = null, myQsRef = null;
 
 document.addEventListener("change", async e => {
   const inp = e.target;
@@ -370,12 +384,17 @@ document.addEventListener("click", e => {
     setSlotImg(s, null); return; }
   const st = e.target.closest("[data-step]");
   if (st){ const d = +st.dataset.d;
-    if (st.dataset.step === "shakes"){ shakes = Math.max(0, shakes + d); $("#shakesVal").textContent = shakes; }
-    else { water = Math.max(0, water + d); $("#waterVal").textContent = water; }
+    shakes = Math.max(0, shakes + d); $("#shakesVal").textContent = shakes;
     return; }
+  const wb = e.target.closest("[data-water]");
+  if (wb){ const add = +wb.dataset.water, cur = num("#waterCc") || 0;
+    $("#waterCc").value = add ? cur + add : ""; return; }
+  const sb = e.target.closest("[data-score]");
+  if (sb){ score = score === +sb.dataset.score ? 0 : +sb.dataset.score; paintScore(); return; }
   const mb = e.target.closest("[data-mood]");
   if (mb){ mood = mood === mb.dataset.mood ? "" : mb.dataset.mood; paintMood(); }
 });
+function paintScore(){ document.querySelectorAll("[data-score]").forEach(b => b.classList.toggle("on", +b.dataset.score === score)); }
 function paintMood(){ document.querySelectorAll("[data-mood]").forEach(b => b.classList.toggle("on", b.dataset.mood === mood)); }
 
 /* ---------- 名字 ---------- */
@@ -394,9 +413,9 @@ $("#switchUser").onclick = () => {
 
 /* ---------- 填寫頁 ---------- */
 function resetForm(){
-  ["#weight","#fat","#visceral","#note"].forEach(s => $(s).value = "");
-  shakes = 0; water = 0; mood = ""; newPhotos = {}; existingFlags = {};
-  $("#shakesVal").textContent = 0; $("#waterVal").textContent = 0; paintMood();
+  ["#weight","#fat","#visceral","#waterCc","#note"].forEach(s => $(s).value = "");
+  shakes = 0; score = 0; mood = ""; newPhotos = {}; existingFlags = {};
+  $("#shakesVal").textContent = 0; paintMood(); paintScore();
   SLOTS.forEach(s => setSlotImg(s, null));
   $("#editNotice").hidden = true; $("#resultCard").hidden = true;
 }
@@ -416,8 +435,9 @@ async function openForm(){
     if (r.fat != null) $("#fat").value = r.fat;
     if (r.visceral != null) $("#visceral").value = r.visceral;
     $("#note").value = r.note || "";
-    shakes = r.shakes || 0; water = r.water || 0; mood = r.mood || "";
-    $("#shakesVal").textContent = shakes; $("#waterVal").textContent = water; paintMood();
+    if (r.waterCc != null) $("#waterCc").value = r.waterCc;
+    shakes = r.shakes || 0; score = r.score || 0; mood = r.mood || "";
+    $("#shakesVal").textContent = shakes; paintMood(); paintScore();
     existingFlags = r.photos || {};
     Object.keys(existingFlags).forEach(s => {
       db.ref(`${ROOT}/photos/${me.key}/${t}/${s}`).once("value").then(p => { if (p.val() && !(s in newPhotos)) setSlotImg(s, p.val()); });
@@ -447,9 +467,9 @@ $("#submitBtn").onclick = async () => {
     const prev = await getPrev(me.key, date);
     const dW = prev && prev.weight != null ? r1(w - prev.weight) : null;
     const dF = prev && prev.fat != null && f != null ? r1(f - prev.fat) : null;
-    const note = $("#note").value.trim();
-    up[`records/${me.key}/${date}`] = { name: me.name, weight: w, fat: f, visceral: v, shakes, water, mood, note, photos: flags, ts: TS() };
-    up[`daily/${date}/${me.key}`] = { name: me.name, weight: w, fat: f, visceral: v, dW, dF, shakes, water, mood, hasNote: !!note, ts: TS() };
+    const note = $("#note").value.trim(), waterCc = num("#waterCc");
+    up[`records/${me.key}/${date}`] = { name: me.name, weight: w, fat: f, visceral: v, shakes, waterCc, score, mood, note, photos: flags, ts: TS() };
+    up[`daily/${date}/${me.key}`] = { name: me.name, weight: w, fat: f, visceral: v, dW, dF, shakes, waterCc, score, mood, hasNote: !!note, ts: TS() };
     up[`clients/${me.key}`] = { name: me.name, last: date };
     await db.ref(ROOT).update(up);
     existingFlags = flags; newPhotos = {};
@@ -580,7 +600,7 @@ function renderToday(){
   $("#todayList").innerHTML =
     miss.map(r => `<div class="crow miss" data-client="${esc(r.k)}"><div><div class="nm">${esc(r.name)}</div><div class="info">${r.last ? "上次填：" + md(r.last) : "還沒填過"}</div></div><span class="tag miss">還沒填</span></div>`).join("") +
     done.map(r => { const d = r.d;
-      const bits = [`${d.weight} kg`, d.fat != null ? `體脂 ${d.fat}%` : "", `奶昔 ${d.shakes||0}`, `水 ${d.water||0} 杯`, d.mood ? MOODS[d.mood].split(" ")[0] : "", d.hasNote ? "📝" : ""].filter(Boolean).join("・");
+      const bits = [`${d.weight} kg`, d.fat != null ? `體脂 ${d.fat}%` : "", `奶昔 ${d.shakes||0}`, d.waterCc != null ? `水 ${d.waterCc}cc` : "", d.score ? `${d.score} 分` : "", d.mood ? MOODS[d.mood].split(" ")[0] : "", d.hasNote ? "📝" : ""].filter(Boolean).join("・");
       return `<div class="crow" data-client="${esc(r.k)}"><div><div class="nm">${esc(r.name)}</div><div class="info">${bits}</div></div><div style="text-align:right">${deltaTag(d.dW, "kg")}</div></div>`; }).join("");
 }
 $("#todayList").onclick = e => { const r = e.target.closest("[data-client]"); if (r) openClient(r.dataset.client); };
@@ -634,7 +654,7 @@ async function openClient(k){
     $("#cChart").innerHTML = chartSVG(ws);
     $("#cHist").innerHTML = recs.slice().reverse().map(r => {
       const nums = [r.weight != null ? `體重 ${r.weight}` : "", r.fat != null ? `體脂 ${r.fat}%` : "", r.visceral != null ? `內臟 ${r.visceral}` : "",
-        `奶昔 ${r.shakes||0}`, `水 ${r.water||0} 杯`, r.mood ? MOODS[r.mood] : ""].filter(Boolean).join("・");
+        `奶昔 ${r.shakes||0}`, r.waterCc != null ? `水 ${r.waterCc}cc` : "", r.score ? `自評 ${r.score} 分` : "", r.mood ? MOODS[r.mood] : ""].filter(Boolean).join("・");
       const hasP = r.photos && Object.keys(r.photos).length;
       return `<div class="hist"><div class="d">${md(r.date)}（${weekday(r.date)}）</div><div class="nums">${nums}</div>` +
         (r.note ? `<div class="note">${esc(r.note)}</div>` : "") +
@@ -647,7 +667,7 @@ $("#cHist").onclick = async e => {
   const b = e.target.closest("[data-photos]"); if (!b) return;
   const date = b.dataset.photos; b.textContent = "讀取中…";
   const s = (await db.ref(`${ROOT}/photos/${currentClient}/${date}`).once("value")).val() || {};
-  $("#th-" + date).innerHTML = SLOTS.filter(k => s[k]).map(k => `<figure><img src="${s[k]}" alt=""><figcaption>${SLOT_LABEL[k].replace("照片","")}</figcaption></figure>`).join("");
+  $("#th-" + date).innerHTML = SLOTS.filter(k => s[k]).map(k => `<figure><img src="${s[k]}" alt=""><figcaption>${SLOT_LABEL[k]}</figcaption></figure>`).join("");
   b.remove();
 };
 $("#backList").onclick = () => setTab("tabToday");
